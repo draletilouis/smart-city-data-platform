@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: smart_city_postgres
+    environment:
+      POSTGRES_DB: smart_city_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: "--auth-host=md5"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  populate_tickets:
+    build:
+      context: .
+      dockerfile: Dockerfile.ingest
+    container_name: smart_city_populate_tickets
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: smart_city_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres123
+    volumes:
+      - ./data:/app/data
+      - ./ingestion:/app/ingestion
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python ingestion/databases/populate_ticket_sales.py
+    networks:
+      - default
+
+  ingest:
+    build:
+      context: .
+      dockerfile: Dockerfile.ingest
+    container_name: smart_city_ingest
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: smart_city_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres123
+    volumes:
+      - ./data:/app/data
+      - ./ingestion:/app/ingestion
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+
+  openaq_ingest:
+    build:
+      context: .
+      dockerfile: Dockerfile.ingest
+    container_name: smart_city_openaq_ingest
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: smartcity_warehouse
+      DB_USER: admin
+      DB_PASSWORD: admin
+    volumes:
+      - ./data:/app/data
+      - ./ingestion:/app/ingestion
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python ingestion/apis/open_data_ingest.py
+    networks:
+      - default
+
+volumes:
+  postgres_data:
+    driver: local

@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy ingestion scripts
+COPY ingestion/ ./ingestion/
+COPY .env .env
+
+# Create data directories
+RUN mkdir -p data/raw/postgres data/staging/postgres data/raw/openaq data/staging/openaq
+
+CMD ["python", "ingestion/databases/postgres_ingest.py"]
